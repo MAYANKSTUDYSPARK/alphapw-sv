@@ -72,25 +72,79 @@ function BatchPage() {
       <section>
         <h2 className="mb-3 flex items-center gap-2 text-lg font-bold">
           <Calendar className="h-5 w-5 text-primary" /> Today's Schedule
+          {scheduleItems.length > 0 && (
+            <span className="ml-1 rounded-full bg-primary/15 px-2 py-0.5 text-xs font-semibold text-primary">
+              {scheduleItems.length}
+            </span>
+          )}
         </h2>
         {schedule.isLoading ? (
-          <div className="h-24 animate-pulse rounded-2xl bg-card" />
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="h-28 animate-pulse rounded-2xl bg-card" />
+            <div className="h-28 animate-pulse rounded-2xl bg-card" />
+          </div>
+        ) : schedule.error ? (
+          <ErrorState error={schedule.error} />
         ) : scheduleItems.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
             No classes scheduled today.
           </div>
         ) : (
           <div className="grid gap-3 md:grid-cols-2">
-            {scheduleItems.map((s: any, i: number) => (
-              <div key={s._id ?? i} className="rounded-2xl border border-border bg-card p-4">
-                <div className="text-sm font-semibold">{s.topic ?? s.name ?? "Class"}</div>
-                {s.startTime && (
-                  <div className="mt-1 text-xs text-muted-foreground">
-                    {new Date(s.startTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            {scheduleItems.map((s: any, i: number) => {
+              const d = s?.data ?? s ?? {};
+              const title = d.topic ?? d.name ?? s.topic ?? "Class";
+              const thumb = d.previewImageUrlMWeb || d.previewImageUrl || "";
+              const subject = d.subjectId?.name ?? d.subjectName;
+              const tag = d.tag ?? (s.type === "LECTURE" ? "Lecture" : s.type);
+              const isLive = (d.status === "LIVE") || (tag && /live/i.test(tag));
+              const time = d.startTime
+                ? new Date(d.startTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                : null;
+              const lecCode = d.scheduleCode;
+              const childId = d._id ?? s._id;
+              return (
+                <Link
+                  key={childId ?? i}
+                  to="/watch/$batchId/$childId"
+                  params={{ batchId, childId }}
+                  search={{ title }}
+                  className="group flex gap-3 overflow-hidden rounded-2xl border border-border bg-card p-3 transition hover:-translate-y-0.5 hover:border-primary/60"
+                >
+                  <div className="relative aspect-video h-20 shrink-0 overflow-hidden rounded-xl bg-secondary">
+                    {thumb ? (
+                      <img src={thumb} alt={title} loading="lazy" className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                        <PlayCircle className="h-7 w-7" />
+                      </div>
+                    )}
+                    {isLive && (
+                      <span className="absolute left-1.5 top-1.5 flex items-center gap-1 rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-bold uppercase text-white">
+                        <Radio className="h-2.5 w-2.5 animate-pulse" /> Live
+                      </span>
+                    )}
                   </div>
-                )}
-              </div>
-            ))}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      {subject && <span className="truncate text-primary">{subject}</span>}
+                      {lecCode && <span className="rounded bg-secondary px-1.5 py-0.5">{lecCode}</span>}
+                    </div>
+                    <div className="mt-0.5 line-clamp-2 text-sm font-bold leading-snug">{title}</div>
+                    <div className="mt-1.5 flex items-center gap-2 text-[11px] text-muted-foreground">
+                      {time && (
+                        <span className="inline-flex items-center gap-1">
+                          <Clock className="h-3 w-3" /> {time}
+                        </span>
+                      )}
+                      {tag && !isLive && (
+                        <span className="rounded-full bg-secondary px-2 py-0.5">{tag}</span>
+                      )}
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         )}
       </section>
