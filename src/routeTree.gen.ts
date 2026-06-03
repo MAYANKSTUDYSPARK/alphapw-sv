@@ -10,33 +10,76 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as BatchBatchIdRouteImport } from './routes/batch.$batchId'
+import { Route as WatchBatchIdChildIdRouteImport } from './routes/watch.$batchId.$childId'
+import { Route as BatchBatchIdSubjectSubjectIdRouteImport } from './routes/batch.$batchId.subject.$subjectId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BatchBatchIdRoute = BatchBatchIdRouteImport.update({
+  id: '/batch/$batchId',
+  path: '/batch/$batchId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WatchBatchIdChildIdRoute = WatchBatchIdChildIdRouteImport.update({
+  id: '/watch/$batchId/$childId',
+  path: '/watch/$batchId/$childId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BatchBatchIdSubjectSubjectIdRoute =
+  BatchBatchIdSubjectSubjectIdRouteImport.update({
+    id: '/subject/$subjectId',
+    path: '/subject/$subjectId',
+    getParentRoute: () => BatchBatchIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/batch/$batchId': typeof BatchBatchIdRouteWithChildren
+  '/watch/$batchId/$childId': typeof WatchBatchIdChildIdRoute
+  '/batch/$batchId/subject/$subjectId': typeof BatchBatchIdSubjectSubjectIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/batch/$batchId': typeof BatchBatchIdRouteWithChildren
+  '/watch/$batchId/$childId': typeof WatchBatchIdChildIdRoute
+  '/batch/$batchId/subject/$subjectId': typeof BatchBatchIdSubjectSubjectIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/batch/$batchId': typeof BatchBatchIdRouteWithChildren
+  '/watch/$batchId/$childId': typeof WatchBatchIdChildIdRoute
+  '/batch/$batchId/subject/$subjectId': typeof BatchBatchIdSubjectSubjectIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/batch/$batchId'
+    | '/watch/$batchId/$childId'
+    | '/batch/$batchId/subject/$subjectId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/batch/$batchId'
+    | '/watch/$batchId/$childId'
+    | '/batch/$batchId/subject/$subjectId'
+  id:
+    | '__root__'
+    | '/'
+    | '/batch/$batchId'
+    | '/watch/$batchId/$childId'
+    | '/batch/$batchId/subject/$subjectId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  BatchBatchIdRoute: typeof BatchBatchIdRouteWithChildren
+  WatchBatchIdChildIdRoute: typeof WatchBatchIdChildIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,22 +91,47 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/batch/$batchId': {
+      id: '/batch/$batchId'
+      path: '/batch/$batchId'
+      fullPath: '/batch/$batchId'
+      preLoaderRoute: typeof BatchBatchIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/watch/$batchId/$childId': {
+      id: '/watch/$batchId/$childId'
+      path: '/watch/$batchId/$childId'
+      fullPath: '/watch/$batchId/$childId'
+      preLoaderRoute: typeof WatchBatchIdChildIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/batch/$batchId/subject/$subjectId': {
+      id: '/batch/$batchId/subject/$subjectId'
+      path: '/subject/$subjectId'
+      fullPath: '/batch/$batchId/subject/$subjectId'
+      preLoaderRoute: typeof BatchBatchIdSubjectSubjectIdRouteImport
+      parentRoute: typeof BatchBatchIdRoute
+    }
   }
 }
 
+interface BatchBatchIdRouteChildren {
+  BatchBatchIdSubjectSubjectIdRoute: typeof BatchBatchIdSubjectSubjectIdRoute
+}
+
+const BatchBatchIdRouteChildren: BatchBatchIdRouteChildren = {
+  BatchBatchIdSubjectSubjectIdRoute: BatchBatchIdSubjectSubjectIdRoute,
+}
+
+const BatchBatchIdRouteWithChildren = BatchBatchIdRoute._addFileChildren(
+  BatchBatchIdRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  BatchBatchIdRoute: BatchBatchIdRouteWithChildren,
+  WatchBatchIdChildIdRoute: WatchBatchIdChildIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
