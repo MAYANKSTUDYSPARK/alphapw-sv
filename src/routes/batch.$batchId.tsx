@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft, Calendar, Layers, ArrowRight } from "lucide-react";
+import { ChevronLeft, Calendar, Layers, ArrowRight, PlayCircle, Radio, Clock } from "lucide-react";
 import { api } from "@/lib/api";
 import { ErrorState, SkeletonCard } from "@/components/Loaders";
 
