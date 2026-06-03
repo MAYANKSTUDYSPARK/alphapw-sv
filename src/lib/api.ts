@@ -1,16 +1,65 @@
 const BASE = "https://api.pimaxer.in/v2";
 
-async function get<T = any>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    headers: { Accept: "application/json" },
+// Tiny in-flight dedupe + small concurrency limiter to avoid 403 rate limits
+const inflight = new Map<string, Promise<any>>();
+let active = 0;
+const queue: Array<() => void> = [];
+const MAX = 4;
+
+function take() {
+  return new Promise<void>((resolve) => {
+    const run = () => {
+      active++;
+      resolve();
+    };
+    if (active < MAX) run();
+    else queue.push(run);
   });
-  if (!res.ok) throw new Error(`API ${res.status}: ${path}`);
-  return res.json();
+}
+function release() {
+  active--;
+  const next = queue.shift();
+  if (next) next();
+}
+
+async function fetchWithRetry(url: string, attempt = 0): Promise<Response> {
+  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  if ((res.status === 403 || res.status === 429 || res.status >= 500) && attempt < 3) {
+    await new Promise((r) => setTimeout(r, 400 * (attempt + 1) + Math.random() * 200));
+    return fetchWithRetry(url, attempt + 1);
+  }
+  return res;
+}
+
+async function get<T = any>(path: string): Promise<T> {
+  const url = `${BASE}${path}`;
+  if (inflight.has(url)) return inflight.get(url)!;
+  const p = (async () => {
+    await take();
+    try {
+      const res = await fetchWithRetry(url);
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(`Request failed (${res.status}). ${text.slice(0, 120)}`);
+      }
+      return (await res.json()) as T;
+    } catch (e: any) {
+      if (e?.message === "Failed to fetch") {
+        throw new Error("Network unreachable — check your connection and try again.");
+      }
+      throw e;
+    } finally {
+      release();
+      setTimeout(() => inflight.delete(url), 0);
+    }
+  })();
+  inflight.set(url, p);
+  return p;
 }
 
 export interface ApiEnvelope<T> {
   success: boolean;
-  timstamp?: number;
+  timestamp?: number | string;
   data: T;
 }
 
