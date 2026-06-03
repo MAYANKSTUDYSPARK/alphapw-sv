@@ -1,6 +1,16 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft, Calendar, Layers, ArrowRight, PlayCircle, Radio, Clock } from "lucide-react";
+import { useEffect, useState } from "react";
+import {
+  ChevronLeft,
+  Calendar,
+  Layers,
+  ArrowRight,
+  PlayCircle,
+  Radio,
+  Clock,
+  Lock,
+} from "lucide-react";
 import { api } from "@/lib/api";
 import { ErrorState, SkeletonCard } from "@/components/Loaders";
 
@@ -14,8 +24,68 @@ export const Route = createFileRoute("/batch/$batchId")({
   component: BatchPage,
 });
 
+interface SchedItem {
+  _id: string;
+  topic: string;
+  thumb: string;
+  subject?: string;
+  scheduleCode?: string;
+  tag?: string;
+  lectureType?: string;
+  startTime?: string;
+  endTime?: string;
+  status?: string;
+  isLive: boolean;
+  isUpcoming: boolean;
+  isEnded: boolean;
+  duration?: string;
+}
+
+function normalizeSched(raw: any, nowMs: number): SchedItem {
+  const d = raw?.data ?? raw ?? {};
+  const start = d.startTime ? new Date(d.startTime).getTime() : 0;
+  const end = d.endTime ? new Date(d.endTime).getTime() : 0;
+  const tag = d.tag ?? "";
+  const status = d.status ?? "";
+  const lectureType = d.lectureType ?? "";
+  // A class is "live" if:
+  //  - upstream marks tag/status LIVE, OR
+  //  - it's a LIVE lecture and now is inside the time window
+  const tagLive = /live/i.test(tag) || /live/i.test(status);
+  const inWindow = start > 0 && end > 0 && nowMs >= start && nowMs <= end;
+  const isLive = tagLive || (lectureType === "LIVE" && inWindow);
+  const isUpcoming = !isLive && start > nowMs;
+  const isEnded = !isLive && end > 0 && end < nowMs && lectureType === "LIVE";
+  return {
+    _id: d._id ?? raw?._id,
+    topic: d.topic ?? d.name ?? "Class",
+    thumb:
+      d.previewImageUrlMWeb ||
+      d.previewImageUrl ||
+      d.videoDetails?.image ||
+      "",
+    subject: d.subjectId?.name ?? d.subjectName,
+    scheduleCode: d.scheduleCode,
+    tag,
+    lectureType,
+    startTime: d.startTime,
+    endTime: d.endTime,
+    status,
+    isLive,
+    isUpcoming,
+    isEnded,
+    duration: d.videoDetails?.duration,
+  };
+}
+
 function BatchPage() {
   const { batchId } = Route.useParams();
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNowMs(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+
   const details = useQuery({
     queryKey: ["batch", batchId],
     queryFn: () => api.batchDetails(batchId),
@@ -25,16 +95,25 @@ function BatchPage() {
     queryKey: ["schedule", batchId],
     queryFn: () => api.todaysSchedule(batchId),
     retry: 1,
+    refetchInterval: 60_000,
   });
 
   const b = details.data?.data;
   const subjects: any[] = b?.subjects ?? [];
-  const rawSched = schedule.data?.data;
-  const scheduleItems: any[] = Array.isArray(rawSched)
+
+  // Upstream double-wraps: { data: { data: [...] } }
+  const rawSched: any = schedule.data?.data;
+  const rawList: any[] = Array.isArray(rawSched)
     ? rawSched
-    : Array.isArray((rawSched as any)?.data)
-      ? (rawSched as any).data
+    : Array.isArray(rawSched?.data)
+      ? rawSched.data
       : [];
+  const scheduleItems: SchedItem[] = rawList.map((r) => normalizeSched(r, nowMs));
+  scheduleItems.sort((a, b) => {
+    if (a.isLive !== b.isLive) return a.isLive ? -1 : 1;
+    return (new Date(a.startTime ?? 0).getTime()) - (new Date(b.startTime ?? 0).getTime());
+  });
+  const liveCount = scheduleItems.filter((s) => s.isLive).length;
 
   return (
     <div className="space-y-8">
@@ -77,6 +156,12 @@ function BatchPage() {
               {scheduleItems.length}
             </span>
           )}
+          {liveCount > 0 && (
+            <span className="ml-1 inline-flex items-center gap-1 rounded-full bg-red-500/15 px-2 py-0.5 text-xs font-bold text-red-500">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" />
+              {liveCount} LIVE
+            </span>
+          )}
         </h2>
         {schedule.isLoading ? (
           <div className="grid gap-3 md:grid-cols-2">
@@ -91,60 +176,9 @@ function BatchPage() {
           </div>
         ) : (
           <div className="grid gap-3 md:grid-cols-2">
-            {scheduleItems.map((s: any, i: number) => {
-              const d = s?.data ?? s ?? {};
-              const title = d.topic ?? d.name ?? s.topic ?? "Class";
-              const thumb = d.previewImageUrlMWeb || d.previewImageUrl || "";
-              const subject = d.subjectId?.name ?? d.subjectName;
-              const tag = d.tag ?? (s.type === "LECTURE" ? "Lecture" : s.type);
-              const isLive = (d.status === "LIVE") || (tag && /live/i.test(tag));
-              const time = d.startTime
-                ? new Date(d.startTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-                : null;
-              const lecCode = d.scheduleCode;
-              const childId = d._id ?? s._id;
-              return (
-                <Link
-                  key={childId ?? i}
-                  to="/watch/$batchId/$childId"
-                  params={{ batchId, childId }}
-                  search={{ title }}
-                  className="group flex gap-3 overflow-hidden rounded-2xl border border-border bg-card p-3 transition hover:-translate-y-0.5 hover:border-primary/60"
-                >
-                  <div className="relative aspect-video h-20 shrink-0 overflow-hidden rounded-xl bg-secondary">
-                    {thumb ? (
-                      <img src={thumb} alt={title} loading="lazy" className="h-full w-full object-cover" />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center text-muted-foreground">
-                        <PlayCircle className="h-7 w-7" />
-                      </div>
-                    )}
-                    {isLive && (
-                      <span className="absolute left-1.5 top-1.5 flex items-center gap-1 rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-bold uppercase text-white">
-                        <Radio className="h-2.5 w-2.5 animate-pulse" /> Live
-                      </span>
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      {subject && <span className="truncate text-primary">{subject}</span>}
-                      {lecCode && <span className="rounded bg-secondary px-1.5 py-0.5">{lecCode}</span>}
-                    </div>
-                    <div className="mt-0.5 line-clamp-2 text-sm font-bold leading-snug">{title}</div>
-                    <div className="mt-1.5 flex items-center gap-2 text-[11px] text-muted-foreground">
-                      {time && (
-                        <span className="inline-flex items-center gap-1">
-                          <Clock className="h-3 w-3" /> {time}
-                        </span>
-                      )}
-                      {tag && !isLive && (
-                        <span className="rounded-full bg-secondary px-2 py-0.5">{tag}</span>
-                      )}
-                    </div>
-                  </div>
-                </Link>
-              );
-            })}
+            {scheduleItems.map((s) => (
+              <ScheduleCard key={s._id} item={s} batchId={batchId} />
+            ))}
           </div>
         )}
       </section>
@@ -188,6 +222,110 @@ function BatchPage() {
           </div>
         )}
       </section>
+    </div>
+  );
+}
+
+function ScheduleCard({ item, batchId }: { item: SchedItem; batchId: string }) {
+  const time = item.startTime
+    ? new Date(item.startTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    : null;
+
+  // Only LIVE classes are clickable. Recorded lectures also playable.
+  const clickable = item.isLive || item.lectureType === "RECORDED";
+
+  const Inner = (
+    <>
+      <div className="relative aspect-video h-24 shrink-0 overflow-hidden rounded-xl bg-secondary">
+        {item.thumb ? (
+          <img
+            src={item.thumb}
+            alt={item.topic}
+            loading="lazy"
+            className="h-full w-full object-cover transition group-hover:scale-105"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary/20 to-secondary text-primary">
+            <PlayCircle className="h-9 w-9" />
+          </div>
+        )}
+        {item.isLive && (
+          <span className="absolute left-1.5 top-1.5 flex items-center gap-1 rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-bold uppercase text-white shadow-lg">
+            <Radio className="h-2.5 w-2.5 animate-pulse" /> Live
+          </span>
+        )}
+        {item.isEnded && (
+          <span className="absolute left-1.5 top-1.5 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-bold uppercase text-white">
+            Ended
+          </span>
+        )}
+        {clickable && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition group-hover:opacity-100">
+            <PlayCircle className="h-10 w-10 text-white" />
+          </div>
+        )}
+        {!clickable && !item.isLive && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+            <Lock className="h-5 w-5 text-white/80" />
+          </div>
+        )}
+      </div>
+      <div className="min-w-0 flex-1 py-0.5">
+        <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider">
+          {item.subject && <span className="truncate text-primary">{item.subject}</span>}
+          {item.scheduleCode && (
+            <span className="rounded bg-secondary px-1.5 py-0.5 text-muted-foreground">
+              {item.scheduleCode}
+            </span>
+          )}
+        </div>
+        <div className="mt-1 line-clamp-2 text-sm font-bold leading-snug">{item.topic}</div>
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+          {time && (
+            <span className="inline-flex items-center gap-1">
+              <Clock className="h-3 w-3" /> {time}
+            </span>
+          )}
+          {item.duration && <span>· {item.duration}</span>}
+          {!item.isLive && item.tag && (
+            <span className="rounded-full bg-secondary px-2 py-0.5">{item.tag}</span>
+          )}
+          {item.lectureType && (
+            <span className="rounded-full border border-border px-2 py-0.5">
+              {item.lectureType}
+            </span>
+          )}
+        </div>
+        {!clickable && (
+          <div className="mt-1.5 text-[10px] font-semibold text-amber-500">
+            Lecture is not live yet
+          </div>
+        )}
+      </div>
+    </>
+  );
+
+  const baseCls = `group flex gap-3 overflow-hidden rounded-2xl border bg-card p-3 transition ${
+    item.isLive
+      ? "border-red-500/50 ring-1 ring-red-500/30 shadow-lg shadow-red-500/10"
+      : "border-border"
+  }`;
+
+  if (clickable) {
+    return (
+      <Link
+        to="/watch/$batchId/$childId"
+        params={{ batchId, childId: item._id }}
+        search={{ title: item.topic, live: item.isLive ? 1 : 0 }}
+        className={`${baseCls} hover:-translate-y-0.5 hover:border-primary/60`}
+      >
+        {Inner}
+      </Link>
+    );
+  }
+  return (
+    <div className={`${baseCls} cursor-not-allowed opacity-75`} title="Lecture is not live yet">
+      {Inner}
     </div>
   );
 }
