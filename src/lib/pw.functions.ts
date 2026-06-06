@@ -66,19 +66,32 @@ export const pwContent = createServerFn({ method: "GET" })
 
 export const pwVideoUrl = createServerFn({ method: "GET" })
   .inputValidator(z.object({ batchId: idSchema, childId: idSchema }))
-  .handler(async ({ data }) =>
-    proxy(
-      `${UPSTREAM}/videos/video-url-details?batchId=${data.batchId}&parentId=${data.batchId}&childId=${data.childId}`,
-    ),
-  );
+  .handler(async ({ data }) => {
+    try {
+      const j = await proxy(
+        `${UPSTREAM}/videos/video-url-details?batchId=${data.batchId}&parentId=${data.batchId}&childId=${data.childId}`,
+      );
+      return { ok: true as const, data: j?.data ?? j };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "video failed";
+      // Upstream returns plain text "Payment required" with HTTP 500 — surface a friendly shape.
+      const paid = /payment/i.test(msg);
+      return {
+        ok: false as const,
+        data: null,
+        error: paid ? "Lecture content is locked or not yet released." : msg,
+        locked: paid,
+      };
+    }
+  });
 
-// Deltastudy live-link proxy. Returns { data: [{ url, ... }] } on success,
-// or { data: [] } when not live. We expose graceful shape to the client.
+// Alpha live-link proxy. Returns { data: [{ url, ... }] } on success,
+// or { data: [] } when not live. Graceful shape, never throws.
 export const pwDeltaLive = createServerFn({ method: "POST" })
   .inputValidator(z.object({ batchId: idSchema }))
   .handler(async ({ data }) => {
     try {
-      const j = await proxy(`${DELTA}/api/pw/live`, {
+      const j = await proxy(`${ALPHA_LIVE}/api/pw/live`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ batchId: data.batchId }),
@@ -89,10 +102,10 @@ export const pwDeltaLive = createServerFn({ method: "POST" })
     }
   });
 
-// Mega-list of 7000+ batches from deltastudy. Cached server-side per request.
+// Mega-list of 7000+ batches. Cached server-side per request.
 export const pwAllBatches = createServerFn({ method: "GET" }).handler(async () => {
   try {
-    const j = await proxy(DELTA_ALL);
+    const j = await proxy(ALPHA_ALL);
     const arr = Array.isArray(j) ? j : Array.isArray(j?.data) ? j.data : [];
     return { ok: true as const, data: arr };
   } catch (e) {
