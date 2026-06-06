@@ -3,8 +3,8 @@ import { z } from "zod";
 
 // Upstream is kept server-side only — clients never see this URL.
 const UPSTREAM = "https://api.pimaxer.in/v2";
-const DELTA = "https://apiserver.deltastudy.site";
-const DELTA_ALL = "https://deltastudy.site/allbatches.json";
+const ALPHA_LIVE = "https://apiserver.deltastudy.site";
+const ALPHA_ALL = "https://deltastudy.site/allbatches.json";
 
 async function proxy(url: string, init?: RequestInit) {
   const res = await fetch(url, {
