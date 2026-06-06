@@ -44,7 +44,9 @@ function WatchPage() {
     return first?.url ?? first?.hls_url ?? first?.videoUrl ?? undefined;
   }, [liveQ.data]);
 
-  const d: any = videoQ.data?.data ?? {};
+  const videoResp: any = videoQ.data ?? {};
+  const d: any = videoResp.ok === false ? {} : (videoResp.data ?? {});
+  const locked: boolean = videoResp.ok === false && videoResp.locked === true;
   const fallbackHls: string | undefined =
     d?.hls?.url ?? d?.videoDetails?.hls_url ?? d?.videoUrl ?? undefined;
   const dashUrl: string | undefined = d?.dash?.url;
