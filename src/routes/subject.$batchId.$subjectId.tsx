@@ -190,7 +190,7 @@ function ContentRow({ item, type, batchId }: { item: any; type: ContentType; bat
     );
   }
 
-  // notes / DppNotes
+  // notes / DppNotes — bigger, more readable card
   const hw = item.homeworkIds?.[0];
   const att = hw?.attachmentIds?.[0];
   const url = att ? `${att.baseUrl}${att.key}` : null;
@@ -200,16 +200,16 @@ function ContentRow({ item, type, batchId }: { item: any; type: ContentType; bat
       href={url ?? "#"}
       target="_blank"
       rel="noreferrer"
-      className="flex items-center gap-4 rounded-2xl border border-border bg-card p-4 transition hover:border-primary/60"
+      className="flex items-center gap-5 rounded-2xl border border-border bg-card p-5 transition hover:border-primary/60 hover:shadow-md"
     >
-      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
-        <FileText className="h-6 w-6" />
+      <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+        <FileText className="h-8 w-8" />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="line-clamp-2 text-sm font-semibold">{title}</div>
-        <div className="mt-0.5 text-xs text-muted-foreground">{att?.name ?? "Open document"}</div>
+        <div className="line-clamp-2 text-base font-bold leading-snug md:text-lg">{title}</div>
+        <div className="mt-1 text-sm text-muted-foreground">{att?.name ?? "Open document"}</div>
       </div>
-      <span className="rounded-full border border-border px-3 py-1 text-xs">Open</span>
+      <span className="rounded-full bg-primary px-4 py-1.5 text-xs font-bold text-primary-foreground">Open</span>
     </a>
   );
 }

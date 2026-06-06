@@ -5,6 +5,8 @@ import {
   pwTopics,
   pwContent,
   pwVideoUrl,
+  pwDeltaLive,
+  pwAllBatches,
 } from "./pw.functions";
 
 export interface ApiEnvelope<T> {
@@ -13,11 +15,9 @@ export interface ApiEnvelope<T> {
   data: T;
 }
 
-// All requests are routed through TanStack server functions so the upstream
-// URL/keys are never exposed to the browser, CORS isn't an issue, and we can
-// add rate-limiting later in one place.
 export const api = {
   batches: () => pwBatches() as Promise<ApiEnvelope<any>>,
+  allBatches: () => pwAllBatches(),
   batchDetails: (batchId: string) =>
     pwBatchDetails({ data: { batchId } }) as Promise<ApiEnvelope<any>>,
   todaysSchedule: (batchId: string) =>
@@ -40,4 +40,5 @@ export const api = {
     }) as Promise<ApiEnvelope<any>>,
   videoUrl: (batchId: string, childId: string) =>
     pwVideoUrl({ data: { batchId, childId } }) as Promise<ApiEnvelope<any>>,
+  liveLink: (batchId: string) => pwDeltaLive({ data: { batchId } }),
 };
