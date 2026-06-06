@@ -99,12 +99,14 @@ function WatchPage() {
                   {live ? <Clock4 className="h-7 w-7" /> : <AlertCircle className="h-7 w-7" />}
                 </div>
                 <div className="text-base font-bold text-white">
-                  {live ? "Lecture is not live yet" : "Stream unavailable"}
+                  {live ? "Lecture is not live yet" : locked ? "Lecture locked" : "Stream unavailable"}
                 </div>
                 <p className="text-xs text-white/60">
                   {live
                     ? "Live link not active right now. We'll keep checking — try again in a few minutes."
-                    : "Couldn't load this lecture. It may be DRM protected or temporarily unavailable."}
+                    : locked
+                      ? (videoResp.error ?? "This lecture's content is locked or not yet released.")
+                      : "Couldn't load this lecture. It may be DRM protected or temporarily unavailable."}
                 </p>
                 <button
                   onClick={retry}
