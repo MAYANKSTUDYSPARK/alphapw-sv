@@ -199,7 +199,7 @@ function BatchPage() {
               return (
                 <Link
                   key={s._id}
-                  to="/batch/$batchId/subject/$subjectId"
+                  to="/subject/$batchId/$subjectId"
                   params={{ batchId, subjectId: s._id }}
                   search={{ name: s.subject }}
                   className="group overflow-hidden rounded-2xl border border-border bg-card p-4 transition hover:-translate-y-0.5 hover:border-primary/60"

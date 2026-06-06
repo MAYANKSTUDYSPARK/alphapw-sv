@@ -14,7 +14,7 @@ const TABS: { key: ContentType; label: string; icon: typeof PlayCircle }[] = [
   { key: "DppVideos", label: "DPP Videos", icon: PlayCircle },
 ];
 
-export const Route = createFileRoute("/batch/$batchId/subject/$subjectId")({
+export const Route = createFileRoute("/subject/$batchId/$subjectId")({
   validateSearch: (s: Record<string, unknown>) => ({
     name: typeof s.name === "string" ? s.name : undefined,
     topic: typeof s.topic === "string" ? s.topic : undefined,
