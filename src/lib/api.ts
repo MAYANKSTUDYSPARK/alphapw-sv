@@ -39,6 +39,6 @@ export const api = {
       },
     }) as Promise<ApiEnvelope<any>>,
   videoUrl: (batchId: string, childId: string) =>
-    pwVideoUrl({ data: { batchId, childId } }) as Promise<ApiEnvelope<any>>,
+    pwVideoUrl({ data: { batchId, childId } }),
   liveLink: (batchId: string) => pwDeltaLive({ data: { batchId } }),
 };
