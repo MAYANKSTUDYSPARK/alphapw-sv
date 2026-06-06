@@ -1,10 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import Hls from "hls.js";
-import { ChevronLeft, Radio, Clock4, AlertCircle } from "lucide-react";
+import { ChevronLeft, Radio, Clock4, AlertCircle, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
-import { PageLoader, ErrorState } from "@/components/Loaders";
+import { PageLoader } from "@/components/Loaders";
 
 export const Route = createFileRoute("/watch/$batchId/$childId")({
   validateSearch: (s: Record<string, unknown>) => ({
@@ -22,17 +22,36 @@ function WatchPage() {
   const { title, live } = Route.useSearch();
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
-  const { data, isLoading, error, refetch, isRefetching } = useQuery({
+  // For LIVE we first try the deltastudy live link proxy (no DRM, plain HLS).
+  const liveQ = useQuery({
+    queryKey: ["live-link", batchId],
+    queryFn: () => api.liveLink(batchId),
+    enabled: !!live,
+    refetchInterval: live ? 30_000 : false,
+    retry: 0,
+  });
+
+  // Fallback: upstream pimaxer video-url-details
+  const videoQ = useQuery({
     queryKey: ["video", batchId, childId],
     queryFn: () => api.videoUrl(batchId, childId),
     retry: 1,
   });
 
-  // Try multiple possible shapes from upstream
-  const d: any = data?.data ?? {};
-  const hlsUrl: string | undefined =
+  const liveHls: string | undefined = useMemo(() => {
+    const arr = liveQ.data?.data ?? [];
+    const first = arr?.[0];
+    return first?.url ?? first?.hls_url ?? first?.videoUrl ?? undefined;
+  }, [liveQ.data]);
+
+  const d: any = videoQ.data?.data ?? {};
+  const fallbackHls: string | undefined =
     d?.hls?.url ?? d?.videoDetails?.hls_url ?? d?.videoUrl ?? undefined;
   const dashUrl: string | undefined = d?.dash?.url;
+
+  const hlsUrl = liveHls ?? fallbackHls;
+  const isLoading = (live && liveQ.isLoading) || videoQ.isLoading;
+  const noStream = !hlsUrl && !isLoading;
 
   useEffect(() => {
     const video = videoRef.current;
@@ -49,10 +68,10 @@ function WatchPage() {
     }
   }, [hlsUrl, live]);
 
-  // Friendlier error: upstream returns 500 with "Payment required" when class
-  // hasn't gone live yet or requires a purchase.
-  const errMsg = error instanceof Error ? error.message : "";
-  const isPaywall = /Payment|402|500/.test(errMsg);
+  const retry = () => {
+    if (live) liveQ.refetch();
+    videoQ.refetch();
+  };
 
   return (
     <div className="space-y-5">
@@ -71,26 +90,25 @@ function WatchPage() {
             <div className="absolute inset-0 grid place-items-center text-white/70">
               <PageLoader label="Connecting to stream…" />
             </div>
-          ) : error || !hlsUrl ? (
+          ) : noStream ? (
             <div className="absolute inset-0 grid place-items-center p-6 text-center">
               <div className="max-w-sm space-y-3">
-                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-500/15 text-amber-400">
-                  {isPaywall ? <Clock4 className="h-7 w-7" /> : <AlertCircle className="h-7 w-7" />}
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-500/20 text-amber-300">
+                  {live ? <Clock4 className="h-7 w-7" /> : <AlertCircle className="h-7 w-7" />}
                 </div>
                 <div className="text-base font-bold text-white">
-                  {isPaywall ? "Lecture is not live yet" : "Stream unavailable"}
+                  {live ? "Lecture is not live yet" : "Stream unavailable"}
                 </div>
                 <p className="text-xs text-white/60">
-                  {isPaywall
-                    ? "The class hasn't started, or it requires a purchase. Try again at the scheduled time."
-                    : "We couldn't load this stream. It may be DRM protected or temporarily down."}
+                  {live
+                    ? "Live link not active right now. We'll keep checking — try again in a few minutes."
+                    : "Couldn't load this lecture. It may be DRM protected or temporarily unavailable."}
                 </p>
                 <button
-                  onClick={() => refetch()}
-                  disabled={isRefetching}
-                  className="rounded-full bg-white px-4 py-1.5 text-xs font-bold text-black transition hover:bg-white/90 disabled:opacity-60"
+                  onClick={retry}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-white px-4 py-1.5 text-xs font-bold text-black transition hover:bg-white/90"
                 >
-                  {isRefetching ? "Checking…" : "Try again"}
+                  <RefreshCw className="h-3.5 w-3.5" /> Try again
                 </button>
               </div>
             </div>
@@ -116,17 +134,17 @@ function WatchPage() {
       <div>
         <h1 className="text-xl font-extrabold md:text-2xl">{title ?? "Lecture"}</h1>
         <p className="mt-1 text-xs text-muted-foreground">
-          AlphaPW Player · {live ? "Live HLS broadcast" : "HLS stream"}
+          AlphaPW Player · {live ? "Low-latency live HLS" : "HLS playback"}
+          {liveHls ? " · via DeltaStudy live" : ""}
         </p>
       </div>
 
-      {dashUrl && (
+      {(hlsUrl || dashUrl) && (
         <details className="rounded-2xl border border-border bg-card p-4 text-xs text-muted-foreground">
-          <summary className="cursor-pointer font-semibold text-foreground">Stream debug info</summary>
+          <summary className="cursor-pointer font-semibold text-foreground">Stream debug</summary>
           <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-all">
-            HLS: {hlsUrl}
-            {"\n\n"}
-            DASH: {dashUrl}
+            HLS: {hlsUrl ?? "(none)"}
+            {dashUrl ? `\n\nDASH: ${dashUrl}` : ""}
             {d?.dash?.drmDetails ? `\n\nDRM: ${d.dash.drmDetails}` : ""}
           </pre>
         </details>
