@@ -77,11 +77,6 @@ function BatchesIndex() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder={`Search ${batches.length} batches…`}
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder={`Search ${batches.length} batches…`}
             className="w-full rounded-xl border border-border bg-card py-3 pl-10 pr-4 text-sm outline-none ring-primary/40 focus:ring-2"
           />
         </div>
