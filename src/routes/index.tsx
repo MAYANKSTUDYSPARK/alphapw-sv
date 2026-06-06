@@ -81,9 +81,12 @@ function BatchesIndex() {
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search batches…"
+            placeholder={`Search ${batches.length} batches…`}
             className="w-full rounded-xl border border-border bg-card py-3 pl-10 pr-4 text-sm outline-none ring-primary/40 focus:ring-2"
           />
+        </div>
+        <div className="rounded-xl border border-border bg-card px-3 py-2 text-xs font-semibold text-muted-foreground">
+          <span className="text-foreground">{filtered.length}</span> / {batches.length} batches
         </div>
         <div className="flex gap-2 overflow-x-auto pb-1">
           {exams.slice(0, 8).map((e) => (
